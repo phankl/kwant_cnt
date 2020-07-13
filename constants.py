@@ -5,7 +5,7 @@ import numpy as np
 # Numerical Constants
 
 EPS = 1.0e-8
-COUPLING_CUTOFF = 1.0e-8
+COUPLING_CUTOFF = 1.0e-6
 
 # Graphene 
 

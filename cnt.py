@@ -2,6 +2,7 @@
 
 import constants as const
 import numpy as np
+from scipy import spatial
 
 import unit_cell
 
@@ -20,8 +21,8 @@ class CNT:
     else:
       self.length = length
     
-    self.origin = origin
-    self.axis = axis / np.linalg.norm(axis)
+    self.origin = np.array(origin)
+    self.axis = np.array(axis / np.linalg.norm(axis))
 
     self.radius = unitCell.radius
 
@@ -55,7 +56,7 @@ class CNT:
     cells = [cellSites + i*latticeVector + origin for i in range(cellNumber-1)]
     lastCell = cellSites + (cellNumber-1)*latticeVector + origin
     if not cellMode:
-      lastCell = lastCell[np.dot(lastCell - origin, self.axis) < length]
+      lastCell = lastCell[np.dot(lastCell - origin, self.axis) < length + const.EPS]
     
     if cellNumber > 1:
       cells.append(lastCell)
@@ -69,41 +70,90 @@ class CNT:
 
     # Hoppings between nearest neighbours
 
-    hoppings = []
+    dist = spatial.distance.cdist(self.sites, self.sites)
+    hoppingIndices = np.argwhere(np.logical_and(dist-aCCMin+const.EPS > 0, dist-const.A_CC-const.EPS < 0))
+    hoppingIndicesMask = np.argwhere(hoppingIndices[:,1] > hoppingIndices[:,0])[:,0]
+    hoppingIndices = hoppingIndices[hoppingIndicesMask]
 
-    siteNumber = len(self.sites)
-
-    for i in range(siteNumber):
-      site1 = self.sites[i]
-      for j in range(i+1, siteNumber):
-        site2 = self.sites[j]
-        dist = np.linalg.norm(site1 - site2)
-        if dist - aCCMin > -const.EPS and dist - const.A_CC < const.EPS:
-          #hoppings.append(0.5 * (site1 + site2))
-          hoppings.append([i, j, const.INTRA_HOPPING])
-
+    hoppings = np.full((len(hoppingIndices), 3), const.INTRA_HOPPING)
+    hoppings[:,:-1] = hoppingIndices
+  
     self.hoppings = hoppings
+
+  def sliceStart(self, length):
+    newSites = []
+    for site in self.sites:
+      siteRelative = site - self.origin
+      startDistance = np.dot(siteRelative, self.axis)
+      if startDistance - length > -const.EPS:
+        newSites.append(site)
+
+    self.sites = np.array(newSites)
+    self.origin = self.origin + length*self.axis
+    self.length = self.length - length
+    
+    # Minimum nearest-neighbour distance
+
+    aCCMin = self.radius * np.sqrt(2.0*(1-np.cos(const.A_CC/self.radius)))
+
+    # Hoppings between nearest neighbours
+
+    dist = spatial.distance.cdist(self.sites, self.sites)
+    hoppingIndices = np.argwhere(np.logical_and(dist-aCCMin+const.EPS > 0, dist-const.A_CC-const.EPS < 0))
+    hoppingIndicesMask = np.argwhere(hoppingIndices[:,1] > hoppingIndices[:,0])[:,0]
+    hoppingIndices = hoppingIndices[hoppingIndicesMask]
+
+    hoppings = np.full((len(hoppingIndices), 3), const.INTRA_HOPPING)
+    hoppings[:,:-1] = hoppingIndices
+    
+    self.hoppings = hoppings
+
 
   def intraTubeHopping(cnt1, cnt2):
     aCCMin = cnt1.radius * np.sqrt(2.0*(1-np.cos(const.A_CC/cnt1.radius)))
 
-    hoppings = []
+    dist = spatial.distance.cdist(cnt1.sites, cnt2.sites)
+    hoppingIndices = np.argwhere(np.logical_and(dist-aCCMin+const.EPS > 0, dist-const.A_CC-const.EPS < 0))
 
-    siteNumber1 = len(cnt1.sites)
-    siteNumber2 = len(cnt2.sites)
-
-    for i in range(siteNumber1):
-      site1 = cnt1.sites[i]
-      for j in range(siteNumber2):
-        site2 = cnt2.sites[j]
-        dist = np.linalg.norm(site1 - site2)
-        if dist - aCCMin > -const.EPS and dist - const.A_CC < const.EPS:
-          #hoppings.append(0.5 * (site1 + site2))
-          hoppings.append([i, j, const.INTRA_HOPPING])
-
+    hoppings = np.full((len(hoppingIndices), 3), const.INTRA_HOPPING)
+    hoppings[:,:-1] = hoppingIndices
+    
     return hoppings
 
   def interTubeHopping(cnt1, cnt2):
+
+    cutoffDistance = const.ALPHA - const.DELTA*np.log(const.COUPLING_CUTOFF)
+    
+    dist = spatial.distance.cdist(cnt1.sites, cnt2.sites)
+    exponentialDecay = np.where(dist < cutoffDistance, np.exp((const.ALPHA-dist)/const.DELTA), 0.0)
+
+    siteRelative1 = cnt1.sites - cnt1.origin
+    siteRelative2 = cnt2.sites - cnt2.origin
+    siteAxialComponent1 = np.dot(siteRelative1, cnt1.axis)
+    siteAxialComponent2 = np.dot(siteRelative2, cnt2.axis)
+    siteAxial1 = np.tensordot(siteAxialComponent1, cnt1.axis, axes=0)
+    siteAxial2 = np.tensordot(siteAxialComponent2, cnt2.axis, axes=0)
+
+    siteOrbital1 = siteRelative1 - siteAxial1
+    siteOrbital2 = siteRelative2 - siteAxial2
+
+    siteOrbitalNorms1 = np.linalg.norm(siteOrbital1, axis=1, keepdims=True)
+    siteOrbitalNorms2 = np.linalg.norm(siteOrbital2, axis=1, keepdims=True)
+
+    siteOrbitalNormalised1 = siteOrbital1 / siteOrbitalNorms1
+    siteOrbitalNormalised2 = siteOrbital2 / siteOrbitalNorms2
+
+    orbitalAngleCos = np.abs(np.dot(siteOrbitalNormalised1, siteOrbitalNormalised2.T))
+     
+    couplingTerm = np.multiply(exponentialDecay, orbitalAngleCos)
+
+    hoppingIndices = np.argwhere(couplingTerm > const.COUPLING_CUTOFF)
+    hoppingValues = -const.INTER_HOPPING * couplingTerm[hoppingIndices.T[0], hoppingIndices.T[1]]
+    hoppingValues = np.reshape(hoppingValues, (-1, 1))
+
+    hoppings = np.append(hoppingIndices, hoppingValues, axis=1)
+
+    '''
     hoppings = []
 
     siteNumber1 = len(cnt1.sites)
@@ -121,12 +171,13 @@ class CNT:
         siteAxial2 = np.dot(siteRelative2, cnt2.axis) * cnt2.axis
         orbitalAxis2 = siteRelative2 - siteAxial2
 
-        orbitalAngleCos = np.dot(orbitalAxis1, orbitalAxis2) / np.linalg.norm(orbitalAxis1) / np.linalg.norm(orbitalAxis2)
+        orbitalAngleCos = np.abs(np.dot(orbitalAxis1, orbitalAxis2) / np.linalg.norm(orbitalAxis1) / np.linalg.norm(orbitalAxis2))
         dist = np.linalg.norm(site1 - site2)
 
         couplingTerm = orbitalAngleCos * np.exp((const.ALPHA-dist)/const.DELTA)
 
         if np.abs(couplingTerm) > const.COUPLING_CUTOFF:
           hoppings.append([i, j, -const.INTER_HOPPING*couplingTerm])
-    
+    '''
+
     return hoppings
