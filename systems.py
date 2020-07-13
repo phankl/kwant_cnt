@@ -20,7 +20,7 @@ class System:
     return transmissionProbability
   
   def plotSystem(self):
-    kwant.plot(self.systemFinalized, site_size=0.1, hop_lw=0.02)
+    kwant.plot(self.systemFinalized, site_size=0.1, hop_lw=0.1)
 
 class SingleCNT(System):
   
@@ -583,16 +583,16 @@ class SlidingContact(System):
     latticeDevice2 = kwant.lattice.Polyatomic([latticeVectorDevice2], cell2.sites, norbs=1)
 
     # Sites
-    for i in range(len(cell1.sites)):
-      system[latticeDevice1.sublattices[i](0)] = 0.0
-    for i in range(len(cell2.sites)):
-      system[latticeDevice2.sublattices[i](0)] = 0.0
- 
+    system[(latticeDevice1.sublattices[i](0) for i in range(len(cell1.sites)))] = 0.0
+    system[(latticeDevice2.sublattices[i](0) for i in range(len(cell2.sites)))] = 0.0
+
+    
     # Intra-tube hopping
-    for hopping in intraCellHoppings1:
-      system[latticeDevice1.sublattices[hopping[0].astype('int')](0), latticeDevice1.sublattices[hopping[1].astype('int')](0)] = hopping[2]
-    for hopping in intraCellHoppings2:
-      system[latticeDevice2.sublattices[hopping[0].astype('int')](0), latticeDevice2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    intraCellHoppingKind1 = [((0,), latticeDevice1.sublattices[hopping[0].astype('int')], latticeDevice1.sublattices[hopping[1].astype('int')]) for hopping in intraCellHoppings1]
+    intraCellHoppingKind2 = [((0,), latticeDevice2.sublattices[hopping[0].astype('int')], latticeDevice2.sublattices[hopping[1].astype('int')]) for hopping in intraCellHoppings2]
+
+    system[[kwant.builder.HoppingKind(*hopping) for hopping in intraCellHoppingKind1]] = const.INTRA_HOPPING
+    system[[kwant.builder.HoppingKind(*hopping) for hopping in intraCellHoppingKind2]] = const.INTRA_HOPPING
 
     # Inter-tube hopping
     for hopping in interTubeHoppings:
@@ -608,34 +608,40 @@ class SlidingContact(System):
     symmetryLead2 = kwant.TranslationalSymmetry(latticeVectorLead2)
     lead2 = kwant.Builder(symmetryLead2)
 
-    for i in range(len(leadUnitCell1.sites)):
-      system[latticeLead1.sublattices[i](0)] = 0.0
-      lead1[latticeLead1.sublattices[i](0)] = 0.0
-    for i in range(len(leadUnitCell2.sites)):
-      system[latticeLead2.sublattices[i](0)] = 0.0
-      lead2[latticeLead2.sublattices[i](0)] = 0.0
+    # Lead sites
+    system[(latticeLead1.sublattices[i](0) for i in range(len(leadUnitCell1.sites)))] = 0.0
+    lead1[(latticeLead1.sublattices[i](0) for i in range(len(leadUnitCell1.sites)))] = 0.0
 
-    for hopping in interCellHoppings1:
-      system[latticeDevice1.sublattices[hopping[0].astype('int')](0), latticeLead1.sublattices[hopping[1].astype('int')](0)] = hopping[2]
-    for hopping in interCellHoppings2:
-      system[latticeDevice2.sublattices[hopping[0].astype('int')](0), latticeLead2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
-
-    for hopping in intraCellLeadHoppings1:
-      system[latticeLead1.sublattices[hopping[0].astype('int')](0), latticeLead1.sublattices[hopping[1].astype('int')](0)] = hopping[2]
-      lead1[latticeLead1.sublattices[hopping[0].astype('int')](0), latticeLead1.sublattices[hopping[1].astype('int')](0)] = hopping[2]
-    for hopping in intraCellLeadHoppings2:
-      system[latticeLead2.sublattices[hopping[0].astype('int')](0), latticeLead2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
-      lead2[latticeLead2.sublattices[hopping[0].astype('int')](0), latticeLead2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
-
-    for hopping in interCellLeadHoppings1:
-      lead1[latticeLead1.sublattices[hopping[0].astype('int')](0), latticeLead1.sublattices[hopping[1].astype('int')](1)] = hopping[2]
-    for hopping in interCellLeadHoppings2:
-      lead2[latticeLead2.sublattices[hopping[0].astype('int')](0), latticeLead2.sublattices[hopping[1].astype('int')](1)] = hopping[2]
-
-    print("Kwant setup finished")
+    system[(latticeLead2.sublattices[i](0) for i in range(len(leadUnitCell2.sites)))] = 0.0
+    lead2[(latticeLead2.sublattices[i](0) for i in range(len(leadUnitCell2.sites)))] = 0.0
     
+    # Intra-cell hoppings
+    intraCellLeadHoppingKind1 = [((0,), latticeLead1.sublattices[hopping[0].astype('int')], latticeLead1.sublattices[hopping[1].astype('int')]) for hopping in intraCellLeadHoppings1]
+    intraCellLeadHoppingKind2 = [((0,), latticeLead2.sublattices[hopping[0].astype('int')], latticeLead2.sublattices[hopping[1].astype('int')]) for hopping in intraCellLeadHoppings2]
+    
+    system[[kwant.builder.HoppingKind(*hopping) for hopping in intraCellLeadHoppingKind1]] = const.INTRA_HOPPING
+    lead1[[kwant.builder.HoppingKind(*hopping) for hopping in intraCellLeadHoppingKind1]] = const.INTRA_HOPPING
+    system[[kwant.builder.HoppingKind(*hopping) for hopping in intraCellLeadHoppingKind2]] = const.INTRA_HOPPING
+    lead2[[kwant.builder.HoppingKind(*hopping) for hopping in intraCellLeadHoppingKind2]] = const.INTRA_HOPPING
+
+    # Inter-cell hoppings (part of scattering region)
+    interCellHoppingKind1 = [((0,), latticeDevice1.sublattices[hopping[0].astype('int')], latticeLead1.sublattices[hopping[1].astype('int')]) for hopping in interCellHoppings1]
+    interCellHoppingKind2 = [((0,), latticeDevice2.sublattices[hopping[0].astype('int')], latticeLead2.sublattices[hopping[1].astype('int')]) for hopping in interCellHoppings2]
+    
+    system[[kwant.builder.HoppingKind(*hopping) for hopping in interCellHoppingKind1]] = const.INTRA_HOPPING
+    system[[kwant.builder.HoppingKind(*hopping) for hopping in interCellHoppingKind2]] = const.INTRA_HOPPING
+   
+    # Inter-cell hoppings (part of proper leads)
+    interCellLeadHoppingKind1 = [((-1,), latticeLead1.sublattices[hopping[0].astype('int')], latticeLead1.sublattices[hopping[1].astype('int')]) for hopping in interCellLeadHoppings1]
+    interCellLeadHoppingKind2 = [((-1,), latticeLead2.sublattices[hopping[0].astype('int')], latticeLead2.sublattices[hopping[1].astype('int')]) for hopping in interCellLeadHoppings2]
+    
+    lead1[[kwant.builder.HoppingKind(*hopping) for hopping in interCellLeadHoppingKind1]] = const.INTRA_HOPPING
+    lead2[[kwant.builder.HoppingKind(*hopping) for hopping in interCellLeadHoppingKind2]] = const.INTRA_HOPPING
+
     system.attach_lead(lead1)
     system.attach_lead(lead2)
+    
+    print("Kwant setup finished")
 
     self.systemFinalized = system.finalized()
 
