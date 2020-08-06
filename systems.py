@@ -15,8 +15,6 @@ class System:
     
     transmissionProbability = np.array([kwant.smatrix(self.systemFinalized, energy).transmission(i, j) for energy in energies])
 
-    print("Conductance computed")
-
     return transmissionProbability
   
   def plotSystem(self):
@@ -388,6 +386,8 @@ class FiniteContact(System):
       intraCellLeadHoppings2 = cntUnitCell2.hoppings
       interCellLeadHoppings2 = cnt.CNT.intraTubeHopping(cntUnitCell2, offsetCNTUnitCell2)
 
+    print("System generated with overlap length", overlap)
+    
     # Kwant setup
 
     # Interacting scattering region
@@ -521,7 +521,7 @@ class SlidingContact(System):
 
     cntUnitCell1 = cnt.CNT(n1, m1, 1, axis=xAxis, rot=rot1)
     cntUnitCell2 = cnt.CNT(n2, m2, 1, axis=xAxis, rot=rot2)
-    
+
     cutoffDistance = const.ALPHA - const.DELTA*np.log(const.COUPLING_CUTOFF)
 
     overlapCellNumber1 = np.ceil(overlap/cntUnitCell1.length).astype('int')
@@ -641,8 +641,4 @@ class SlidingContact(System):
     system.attach_lead(lead1)
     system.attach_lead(lead2)
     
-    print("Kwant setup finished")
-
     self.systemFinalized = system.finalized()
-
-    print("System finalised")

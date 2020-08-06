@@ -5,11 +5,11 @@ import numpy as np
 # Numerical Constants
 
 EPS = 1.0e-8
-COUPLING_CUTOFF = 1.0e-6
+COUPLING_CUTOFF = 1.0e-4
 
 # Graphene 
 
-A_CC = 1.42
+A_CC = 1.418
 A = np.sqrt(3.0) * A_CC
 
 D = np.array([-A_CC, 0.0])
