@@ -19,8 +19,6 @@ class UnitCell:
     t1 = (2*m+n) // nR
     t2 = -(2*n+m) // nR
 
-    print(n, m, t1, t2)
-
     chiralVector = n*const.A1 + m*const.A2
     axisVector = t1*const.A1 + t2*const.A2
 

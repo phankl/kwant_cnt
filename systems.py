@@ -670,7 +670,8 @@ class angledContact(System):
     self.offset1 = offset1
     self.offset2 = offset2
 
-    cutoffDistance = const.ALPHA - const.DELTA*np.log(const.COUPLING_CUTOFF)
+    surfaceDistance = distance - radius1 - radius2
+    cutoffDistance = np.sqrt((const.ALPHA - const.DELTA*np.log(const.COUPLING_CUTOFF))**2 - surfaceDistance**2)
 
     overlap1 = (radius1 + cutoffDistance)/np.tan(angle) + radius2/np.sin(angle) + cutoffDistance
     overlap2 = (radius2 + cutoffDistance)/np.tan(angle) + radius1/np.sin(angle) + cutoffDistance
@@ -717,7 +718,7 @@ class angledContact(System):
     # Lead hoppings
 
     offsetUnitCell1 = cnt.CNT(n1, m1, 1, axis=xAxis, origin=(cntUnitCell1.length, 0.0, 0.0), rot=rot1)
-    offsetUnitCell2 = cnt.CNT(n2, m2, 1, axis=xAxis, origin=(cntUnitCell1.length, 0.0, 0.0), rot=rot2)
+    offsetUnitCell2 = cnt.CNT(n2, m2, 1, axis=xAxis, origin=(cntUnitCell2.length, 0.0, 0.0), rot=rot2)
 
     intraCellLeadHoppings1 = cntUnitCell1.hoppings
     intraCellLeadHoppings2 = cntUnitCell2.hoppings
