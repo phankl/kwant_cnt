@@ -11,37 +11,23 @@ comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 
-unitCellLength = 2.4595121467478056
+siteEnergy = 0.0
+hoppingEnergy = 1.0
 
-#overlapStart = 8.52
-#overlapPoints = 201
-#overlapEnd = overlapStart + (overlapPoints-1)*3.0*unitCellLength
-
-overlapStart = 0.0
-overlapEnd = 1000.0
-overlapPoints = 1001
-
-n1 = 6
-m1 = 6
-n2 = 6
-m2 = 6
+overlapStart = 1
+overlapEnd = 10000
+overlapPoints = overlapEnd - overlapStart
 
 energy = 0.001
 
-radius = 1.5/np.pi*const.A_CC * 6
-angle = -0.5*const.A_CC / radius
-
-distance = 2.0*radius + 3.2
-
 energies = [energy]
 
-overlaps = np.linspace(overlapStart, overlapEnd, overlapPoints)
+overlaps = range(overlapStart, overlapEnd)
 conductance = np.zeros((overlapPoints, 8))
 
 for i in range(rank, overlapPoints, size):
   overlap = overlaps[i]
-  system = systems.FiniteContact(6, 6, 6, 6, overlap, distance, rot1=angle, rot2=angle, offset=0.0)
-  #system.plotSystem()
+  system = systems.Chain(overlap, site=siteEnergy, hopping=hoppingEnergy)
   conductance[i, 0] = system.transmission(0, 0, energies)[0]
   conductance[i, 1] = system.transmission(0, 1, energies)[0]
   conductance[i, 2] = system.transmission(0, 2, energies)[0]
@@ -60,4 +46,4 @@ if rank == 0:
 
   data = np.append(overlaps, conductanceRoot, axis=1)
 
-  np.savetxt("conductance.dat", data)
+  np.savetxt("chain.dat", data)

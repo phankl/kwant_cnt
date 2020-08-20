@@ -19,6 +19,8 @@ class UnitCell:
     t1 = (2*m+n) // nR
     t2 = -(2*n+m) // nR
 
+    print(n, m, t1, t2)
+
     chiralVector = n*const.A1 + m*const.A2
     axisVector = t1*const.A1 + t2*const.A2
 
@@ -35,10 +37,16 @@ class UnitCell:
     self.radius = radius
     self.length = axisVectorLength
    
-    siteRange = range(-nC, nC+1)
+    nMin = min(0, n, t1, n+t1)
+    nMax = max(0, n, t1, n+t1)
+    mMin = min(0, m, t2, m+t2)
+    mMax = max(0, m, t2, m+t2)
 
-    siteCandidatesA = np.array([n_*const.A1 + m_*const.A2 for n_ in siteRange for m_ in siteRange])
-    siteCandidatesB = np.array([n_*const.A1 + m_*const.A2 + const.D for n_ in siteRange for m_ in siteRange])
+    nRange = range(nMin, nMax+1)
+    mRange = range(mMin, mMax+1)
+
+    siteCandidatesA = np.array([n_*const.A1 + m_*const.A2 for n_ in nRange for m_ in mRange])
+    siteCandidatesB = np.array([n_*const.A1 + m_*const.A2 + const.D for n_ in nRange for m_ in mRange])
 
     siteCandidates = np.concatenate((siteCandidatesA, siteCandidatesB))
 

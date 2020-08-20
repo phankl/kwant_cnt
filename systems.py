@@ -642,3 +642,221 @@ class SlidingContact(System):
     system.attach_lead(lead2)
     
     self.systemFinalized = system.finalized()
+
+class angledContact(System):
+  def __init__(self, n1, m1, n2, m2, angle, distance, rot1=0.0, offset1=0.0, rot2=0.0, offset2=0.0):
+    
+    self.n1 = n1
+    self.m1 = m1
+    self.n2 = n2
+    self.m2 = m2
+    self.angle = angle
+    self.distance = distance
+    self.rot1 = rot1
+    self.rot2 = rot2
+
+    xAxis = (1.0, 0.0, 0.0)
+    axis1 = (1.0, 0.0, 0.0)
+    axis2 = (np.cos(angle), np.sin(angle), 0.0)
+
+    cntUnitCell1 = cnt.CNT(n1, m1, 1, axis=xAxis, rot=rot1)
+    cntUnitCell2 = cnt.CNT(n2, m2, 1, axis=xAxis, rot=rot2)
+
+    radius1 = cntUnitCell1.radius
+    radius2 = cntUnitCell2.radius
+    offset1 %= cntUnitCell1.length
+    offset2 %= cntUnitCell2.length
+
+    self.offset1 = offset1
+    self.offset2 = offset2
+
+    cutoffDistance = const.ALPHA - const.DELTA*np.log(const.COUPLING_CUTOFF)
+
+    overlap1 = (radius1 + cutoffDistance)/np.tan(angle) + radius2/np.sin(angle) + cutoffDistance
+    overlap2 = (radius2 + cutoffDistance)/np.tan(angle) + radius1/np.sin(angle) + cutoffDistance
+
+    overlapCellNumber1 = 2 * np.ceil(overlap1/cntUnitCell1.length).astype('int') + 1
+    overlapCellNumber2 = 2 * np.ceil(overlap2/cntUnitCell2.length).astype('int') + 1
+
+    # Construct scattering geometry
+    
+    length1 = overlapCellNumber1 * cntUnitCell1.length
+    origin1 = offset1 - 0.5*length1
+    length2 = overlapCellNumber2 * cntUnitCell2.length
+    origin2 = offset2 - 0.5*length2
+    
+    cell1 = cnt.CNT(n1, m1, overlapCellNumber1, axis=axis1, origin=(origin1, 0.0, 0.0), rot=rot1)
+    cell2 = cnt.CNT(n2, m2, overlapCellNumber2, axis=axis2, origin=(origin2*np.cos(angle), origin2*np.sin(angle), -distance), rot=rot2)
+    
+    leadUnitCellLeft1 = cnt.CNT(n1, m1, 1, axis=axis1, origin=(origin1-cntUnitCell1.length, 0.0, 0.0), rot=rot1)
+    leadUnitCellRight1 = cnt.CNT(n1, m1, 1, axis=axis1, origin=(origin1+cell1.length, 0.0, 0.0), rot=rot1)
+    leadUnitCellLeft2 = cnt.CNT(n2, m2, 1, axis=axis2, origin=((origin2-cntUnitCell2.length)*np.cos(angle), (origin2-cntUnitCell2.length)*np.sin(angle), -distance), rot=rot2)
+    leadUnitCellRight2 = cnt.CNT(n2, m2, 1, axis=axis2, origin=((origin2+cell2.length)*np.cos(angle), (origin2+cell2.length)*np.sin(angle), -distance), rot=rot2)
+
+    # Scattering region hoppings
+
+    intraCellHoppings1 = cell1.hoppings
+    intraCellHoppings2 = cell2.hoppings
+
+    interTubeHoppings = cnt.CNT.interTubeHopping(cell1, cell2)
+
+    # Lead unit cells in scattering region
+    
+    intraCellHoppingsLeft1 = leadUnitCellLeft1.hoppings
+    interCellHoppingsLeft1 = cnt.CNT.intraTubeHopping(cell1, leadUnitCellLeft1)
+    
+    intraCellHoppingsRight1 = leadUnitCellRight1.hoppings
+    interCellHoppingsRight1 = cnt.CNT.intraTubeHopping(cell1, leadUnitCellRight1)
+    
+    intraCellHoppingsLeft2 = leadUnitCellLeft2.hoppings
+    interCellHoppingsLeft2 = cnt.CNT.intraTubeHopping(cell2, leadUnitCellLeft2)
+    
+    intraCellHoppingsRight2 = leadUnitCellRight2.hoppings
+    interCellHoppingsRight2 = cnt.CNT.intraTubeHopping(cell2, leadUnitCellRight2)
+
+    # Lead hoppings
+
+    offsetUnitCell1 = cnt.CNT(n1, m1, 1, axis=xAxis, origin=(cntUnitCell1.length, 0.0, 0.0), rot=rot1)
+    offsetUnitCell2 = cnt.CNT(n2, m2, 1, axis=xAxis, origin=(cntUnitCell1.length, 0.0, 0.0), rot=rot2)
+
+    intraCellLeadHoppings1 = cntUnitCell1.hoppings
+    intraCellLeadHoppings2 = cntUnitCell2.hoppings
+
+    interCellLeadHoppings1 = cnt.CNT.intraTubeHopping(cntUnitCell1, offsetUnitCell1)
+    interCellLeadHoppings2 = cnt.CNT.intraTubeHopping(cntUnitCell2, offsetUnitCell2)
+
+    print("System generated at angle", angle)
+
+    # Kwant setup
+
+    # Scattering region
+
+    system = kwant.Builder()
+
+    latticeVectorDevice1 = cell1.length * cell1.axis
+    latticeVectorDevice2 = cell2.length * cell2.axis
+
+    latticeVectorLead1 = cntUnitCell1.length * cell1.axis
+    latticeVectorLead2 = cntUnitCell2.length * cell2.axis
+
+    latticeDevice1 = kwant.lattice.Polyatomic([latticeVectorDevice1], cell1.sites, norbs=1)
+    latticeDevice2 = kwant.lattice.Polyatomic([latticeVectorDevice2], cell2.sites, norbs=1)
+
+    # Sites
+    system[(latticeDevice1.sublattices[i](0) for i in range(len(cell1.sites)))] = 0.0
+    system[(latticeDevice2.sublattices[i](0) for i in range(len(cell2.sites)))] = 0.0
+    
+    # Intra-tube hopping
+    intraCellHoppingKind1 = [((0,), latticeDevice1.sublattices[hopping[0].astype('int')], latticeDevice1.sublattices[hopping[1].astype('int')]) for hopping in intraCellHoppings1]
+    intraCellHoppingKind2 = [((0,), latticeDevice2.sublattices[hopping[0].astype('int')], latticeDevice2.sublattices[hopping[1].astype('int')]) for hopping in intraCellHoppings2]
+
+    system[[kwant.builder.HoppingKind(*hopping) for hopping in intraCellHoppingKind1]] = const.INTRA_HOPPING
+    system[[kwant.builder.HoppingKind(*hopping) for hopping in intraCellHoppingKind2]] = const.INTRA_HOPPING
+
+    # Inter-tube hopping
+    for hopping in interTubeHoppings:
+      system[latticeDevice1.sublattices[hopping[0].astype('int')](0), latticeDevice2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+     
+    # Leads (including non-interacting part of scattering region)
+    
+    # Define lattices, symmetries and leads
+    latticeLeadLeft1 = kwant.lattice.Polyatomic([latticeVectorLead1], leadUnitCellLeft1.sites, norbs=1)
+    symmetryLeadLeft1 = kwant.TranslationalSymmetry(-latticeVectorLead1)
+    leadLeft1 = kwant.Builder(symmetryLeadLeft1)
+
+    latticeLeadRight1 = kwant.lattice.Polyatomic([latticeVectorLead1], leadUnitCellRight1.sites, norbs=1)
+    symmetryLeadRight1 = kwant.TranslationalSymmetry(latticeVectorLead1)
+    leadRight1 = kwant.Builder(symmetryLeadRight1)
+    
+    latticeLeadLeft2 = kwant.lattice.Polyatomic([latticeVectorLead2], leadUnitCellLeft2.sites, norbs=1)
+    symmetryLeadLeft2 = kwant.TranslationalSymmetry(-latticeVectorLead2)
+    leadLeft2 = kwant.Builder(symmetryLeadLeft2)
+    
+    latticeLeadRight2 = kwant.lattice.Polyatomic([latticeVectorLead2], leadUnitCellRight2.sites, norbs=1)
+    symmetryLeadRight2 = kwant.TranslationalSymmetry(latticeVectorLead2)
+    leadRight2 = kwant.Builder(symmetryLeadRight2)
+
+    # Sites
+    system[(latticeLeadLeft1.sublattices[i](0) for i in range(len(leadUnitCellLeft1.sites)))] = 0.0
+    leadLeft1[(latticeLeadLeft1.sublattices[i](0) for i in range(len(leadUnitCellLeft1.sites)))] = 0.0
+    
+    system[(latticeLeadRight1.sublattices[i](0) for i in range(len(leadUnitCellRight1.sites)))] = 0.0
+    leadRight1[(latticeLeadRight1.sublattices[i](0) for i in range(len(leadUnitCellRight1.sites)))] = 0.0
+
+    system[(latticeLeadLeft2.sublattices[i](0) for i in range(len(leadUnitCellLeft2.sites)))] = 0.0
+    leadLeft2[(latticeLeadLeft2.sublattices[i](0) for i in range(len(leadUnitCellLeft2.sites)))] = 0.0
+
+    system[(latticeLeadRight2.sublattices[i](0) for i in range(len(leadUnitCellRight2.sites)))] = 0.0
+    leadRight2[(latticeLeadRight2.sublattices[i](0) for i in range(len(leadUnitCellRight2.sites)))] = 0.0
+
+    # Hoppings
+
+    for hopping in intraCellHoppingsLeft1:
+      system[latticeLeadLeft1.sublattices[hopping[0].astype('int')](0), latticeLeadLeft1.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in interCellHoppingsLeft1:
+      system[latticeDevice1.sublattices[hopping[0].astype('int')](0), latticeLeadLeft1.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in intraCellLeadHoppings1:
+      leadLeft1[latticeLeadLeft1.sublattices[hopping[0].astype('int')](0), latticeLeadLeft1.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in interCellLeadHoppings1:
+      leadLeft1[latticeLeadLeft1.sublattices[hopping[0].astype('int')](0), latticeLeadLeft1.sublattices[hopping[1].astype('int')](1)] = hopping[2]
+    
+    for hopping in intraCellHoppingsRight1:
+      system[latticeLeadRight1.sublattices[hopping[0].astype('int')](0), latticeLeadRight1.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in interCellHoppingsRight1:
+      system[latticeDevice1.sublattices[hopping[0].astype('int')](0), latticeLeadRight1.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in intraCellLeadHoppings1:
+      leadRight1[latticeLeadRight1.sublattices[hopping[0].astype('int')](0), latticeLeadRight1.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in interCellLeadHoppings1:
+      leadRight1[latticeLeadRight1.sublattices[hopping[0].astype('int')](0), latticeLeadRight1.sublattices[hopping[1].astype('int')](1)] = hopping[2]
+      
+    for hopping in intraCellHoppingsLeft2:
+      system[latticeLeadLeft2.sublattices[hopping[0].astype('int')](0), latticeLeadLeft2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in interCellHoppingsLeft2:
+      system[latticeDevice2.sublattices[hopping[0].astype('int')](0), latticeLeadLeft2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in intraCellLeadHoppings2:
+      leadLeft2[latticeLeadLeft2.sublattices[hopping[0].astype('int')](0), latticeLeadLeft2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in interCellLeadHoppings2:
+      leadLeft2[latticeLeadLeft2.sublattices[hopping[0].astype('int')](0), latticeLeadLeft2.sublattices[hopping[1].astype('int')](1)] = hopping[2]
+      
+    for hopping in intraCellHoppingsRight2:
+      system[latticeLeadRight2.sublattices[hopping[0].astype('int')](0), latticeLeadRight2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in interCellHoppingsRight2:
+      system[latticeDevice2.sublattices[hopping[0].astype('int')](0), latticeLeadRight2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in intraCellLeadHoppings2:
+      leadRight2[latticeLeadRight2.sublattices[hopping[0].astype('int')](0), latticeLeadRight2.sublattices[hopping[1].astype('int')](0)] = hopping[2]
+    for hopping in interCellLeadHoppings2:
+      leadRight2[latticeLeadRight2.sublattices[hopping[0].astype('int')](0), latticeLeadRight2.sublattices[hopping[1].astype('int')](1)] = hopping[2]
+        
+    system.attach_lead(leadLeft1)
+    system.attach_lead(leadRight1)
+    system.attach_lead(leadLeft2)
+    system.attach_lead(leadRight2)
+    
+    self.systemFinalized = system.finalized()
+
+class Chain(System):
+  def __init__(self, overlap, spacing=1.0, site=1.0, hopping=0.5):
+    xVector = spacing * np.array([1.0, 0.0])
+    yVector = spacing * np.array([0.0, 1.0])
+
+    lattice = kwant.lattice.square(spacing)
+
+    system = kwant.Builder()
+
+    system[(lattice(i, j) for i in range(overlap) for j in range(-1,1))] = site
+    system[lattice.neighbors()] = hopping
+
+    leftLead1 = kwant.Builder(kwant.TranslationalSymmetry((-spacing, 0.0)))
+    leftLead1[lattice(0, 0)] = site
+    leftLead1[lattice.neighbors()] = hopping
+
+    leftLead2 = kwant.Builder(kwant.TranslationalSymmetry((-spacing, 0.0)))
+    leftLead2[lattice(0, -1)] = site
+    leftLead2[lattice.neighbors()] = hopping
+
+    system.attach_lead(leftLead1)
+    system.attach_lead(leftLead1.reversed())
+    system.attach_lead(leftLead2)
+    system.attach_lead(leftLead2.reversed())
+
+    self.systemFinalized = system.finalized()
