@@ -6,6 +6,7 @@ import numpy as np
 
 EPS = 1.0e-8
 COUPLING_CUTOFF = 1.0e-3
+SKIN = 0.1
 
 # Graphene 
 

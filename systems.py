@@ -650,11 +650,13 @@ class angledContact(System):
     self.m1 = m1
     self.n2 = n2
     self.m2 = m2
-    self.angle = angle
     self.distance = distance
     self.rot1 = rot1
     self.rot2 = rot2
 
+    angle %= np.pi
+    self.angle = angle
+    
     xAxis = (1.0, 0.0, 0.0)
     axis1 = (1.0, 0.0, 0.0)
     axis2 = (np.cos(angle), np.sin(angle), 0.0)
@@ -672,9 +674,10 @@ class angledContact(System):
 
     surfaceDistance = distance - radius1 - radius2
     cutoffDistance = np.sqrt((const.ALPHA - const.DELTA*np.log(const.COUPLING_CUTOFF))**2 - surfaceDistance**2)
+    
 
-    overlap1 = (radius1 + cutoffDistance)/np.tan(angle) + radius2/np.sin(angle) + cutoffDistance
-    overlap2 = (radius2 + cutoffDistance)/np.tan(angle) + radius1/np.sin(angle) + cutoffDistance
+    overlap1 = np.abs((radius1 + cutoffDistance)/np.tan(angle)) + radius2/np.sin(angle) + cutoffDistance
+    overlap2 = np.abs((radius2 + cutoffDistance)/np.tan(angle)) + radius1/np.sin(angle) + cutoffDistance
 
     overlapCellNumber1 = 2 * np.ceil(overlap1/cntUnitCell1.length).astype('int') + 1
     overlapCellNumber2 = 2 * np.ceil(overlap2/cntUnitCell2.length).astype('int') + 1

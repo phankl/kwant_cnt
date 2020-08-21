@@ -111,6 +111,10 @@ class CNT:
     xBinNumber = np.floor((xMax-xMin) / const.A_CC)
     yBinNumber = np.floor((yMax-yMin) / const.A_CC)
     zBinNumber = np.floor((zMax-zMin) / const.A_CC)
+    
+    if xBinNumber == 0: xBinNumber = 1
+    if yBinNumber == 0: yBinNumber = 1
+    if zBinNumber == 0: zBinNumber = 1
 
     xBins = np.linspace(xMin, xMax, xBinNumber)
     yBins = np.linspace(yMin, yMax, yBinNumber)
@@ -128,7 +132,7 @@ class CNT:
       index1 = indices[i]
       site1 = sites[i]
 
-      nearbySiteNumbers = np.argwhere(spatial.distance.cdist([index1], indices) <= np.sqrt(2.0) + const.EPS)[:,1].reshape((-1))     
+      nearbySiteNumbers = np.argwhere(spatial.distance.cdist([index1], indices2, lambda u, v: np.amax(np.abs(u-v))) < 2)[:,1].reshape((-1))     
 
       if len(nearbySiteNumbers) == 0: continue
 
@@ -174,6 +178,10 @@ class CNT:
     xBinNumber = np.floor((xMax-xMin) / const.A_CC)
     yBinNumber = np.floor((yMax-yMin) / const.A_CC)
     zBinNumber = np.floor((zMax-zMin) / const.A_CC)
+    
+    if xBinNumber == 0: xBinNumber = 1
+    if yBinNumber == 0: yBinNumber = 1
+    if zBinNumber == 0: zBinNumber = 1
 
     xBins = np.linspace(xMin, xMax, xBinNumber)
     yBins = np.linspace(yMin, yMax, yBinNumber)
@@ -195,7 +203,7 @@ class CNT:
       index1 = indices1[i]
       site1 = cnt1.sites[i]
 
-      nearbySiteNumbers = np.argwhere(spatial.distance.cdist([index1], indices2) <= np.sqrt(2.0) + const.EPS)[:,1].reshape((-1))     
+      nearbySiteNumbers = np.argwhere(spatial.distance.cdist([index1], indices2, lambda u, v: np.amax(np.abs(u-v))) < 2)[:,1].reshape((-1))     
 
       if len(nearbySiteNumbers) == 0: continue
 
@@ -240,6 +248,10 @@ class CNT:
     yBinNumber = np.floor((yMax-yMin) / cutoffDistance)
     zBinNumber = np.floor((zMax-zMin) / cutoffDistance)
 
+    if xBinNumber == 0: xBinNumber = 1
+    if yBinNumber == 0: yBinNumber = 1
+    if zBinNumber == 0: zBinNumber = 1
+
     xBins = np.linspace(xMin, xMax, xBinNumber)
     yBins = np.linspace(yMin, yMax, yBinNumber)
     zBins = np.linspace(zMin, zMax, zBinNumber)
@@ -280,7 +292,7 @@ class CNT:
       index1 = indices1[i]
       site1 = cnt1.sites[i]
 
-      nearbySiteNumbers = np.argwhere(spatial.distance.cdist([index1], indices2) <= np.sqrt(2.0) + const.EPS)[:,1].reshape((-1))     
+      nearbySiteNumbers = np.argwhere(spatial.distance.cdist([index1], indices2, lambda u, v: np.amax(np.abs(u-v))) < 2)[:,1].reshape((-1))     
 
       if len(nearbySiteNumbers) == 0: continue
 
