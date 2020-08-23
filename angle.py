@@ -11,12 +11,21 @@ comm = MPI.COMM_WORLD
 size = comm.Get_size()
 rank = comm.Get_rank()
 
-n1 = 6
-m1 = 6
-n2 = 6
-m2 = 6
+n1 = 0
+m1 = 0
+n2 = 0
+m2 = 0
 
-energy = 0.1
+if rank == 0:
+  print("Pairing: (", n1, ",", m1, ")", " (", n2, ",", m2, ")", flush=True)
+
+prefix = str(n1) + "_" + str(m1) + "_" + str(n2) + "_" + str(m2) + "_"
+meanName = prefix + "mean.dat"
+stdName = prefix + "std.dat"
+minName = prefix + "min.dat"
+maxName = prefix + "max.dat"
+
+energy = 0.5
 
 angleSamples = 200
 offsetSamples = 2
@@ -53,7 +62,9 @@ rots2 = np.linspace(0.0, rotMax2, rotSamples)
 
 conductanceData= np.zeros((4, angleSamples, 8))
 
-for i in range(rank, angleSamples, size):
+k = 0
+indices = range(rank, angleSamples, size)
+for i in indices:
   angle = angles[i]
 
   conductance = np.zeros((offsetSamples**2 * rotSamples**2, 8))
@@ -82,6 +93,9 @@ for i in range(rank, angleSamples, size):
   conductanceData[2, i] = np.amin(conductance, axis=0)
   conductanceData[3, i] = np.amax(conductance, axis=0)
 
+  k += 1
+  print("Process", rank+1, "out of", size, "progress:", k, "/", len(indices), flush=True)
+
 conductanceRoot = np.zeros((4, angleSamples, 8))
 comm.Allreduce([conductanceData, MPI.DOUBLE], [conductanceRoot, MPI.DOUBLE], op=MPI.SUM)
 
@@ -93,9 +107,7 @@ if rank == 0:
   conductanceMin = np.append(angles, conductanceRoot[2], axis=1)
   conductanceMax = np.append(angles, conductanceRoot[3], axis=1)
 
-  np.savetxt("conductanceMean.dat", conductanceMean)
-  np.savetxt("conductanceStd.dat", conductanceStd)
-  np.savetxt("conductanceMin.dat", conductanceMin)
-  np.savetxt("conductanceMax.dat", conductanceMax)
-
-
+  np.savetxt(meanName, conductanceMean)
+  np.savetxt(stdName, conductanceStd)
+  np.savetxt(minName, conductanceMin)
+  np.savetxt(maxName, conductanceMax)

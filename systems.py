@@ -729,8 +729,6 @@ class angledContact(System):
     interCellLeadHoppings1 = cnt.CNT.intraTubeHopping(cntUnitCell1, offsetUnitCell1)
     interCellLeadHoppings2 = cnt.CNT.intraTubeHopping(cntUnitCell2, offsetUnitCell2)
 
-    print("System generated at angle", angle)
-
     # Kwant setup
 
     # Scattering region
