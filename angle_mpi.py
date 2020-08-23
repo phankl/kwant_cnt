@@ -1,16 +1,23 @@
 import kwant
 import numpy as np
 
+from mpi4py import MPI
+
 import constants as const
 import cnt
 import systems
+
+comm = MPI.COMM_WORLD
+size = comm.Get_size()
+rank = comm.Get_rank()
 
 n1 = 0
 m1 = 0
 n2 = 0
 m2 = 0
 
-print("Pairing: (", n1, ",", m1, ")", " (", n2, ",", m2, ")", flush=True)
+if rank == 0:
+  print("Pairing: (", n1, ",", m1, ")", " (", n2, ",", m2, ")", flush=True)
 
 prefix = str(n1) + "_" + str(m1) + "_" + str(n2) + "_" + str(m2) + "_"
 meanName = prefix + "mean.dat"
@@ -53,10 +60,13 @@ offsets2 = np.linspace(0.0, offsetMax2, offsetSamples)
 rots1 = np.linspace(0.0, rotMax1, rotSamples)
 rots2 = np.linspace(0.0, rotMax2, rotSamples)
 
-conductanceData = np.zeros((4, angleSamples, 8))
+conductanceData= np.zeros((4, angleSamples, 8))
 
 k = 0
-for angle in angles:
+indices = range(rank, angleSamples, size)
+for i in indices:
+  angle = angles[i]
+
   conductance = np.zeros((offsetSamples**2 * rotSamples**2, 8))
   j = 0
 
@@ -84,16 +94,20 @@ for angle in angles:
   conductanceData[3, i] = np.amax(conductance, axis=0)
 
   k += 1
-  print("Progress:", k, "/", len(indices), flush=True)
+  print("Process", rank+1, "out of", size, "progress:", k, "/", len(indices), flush=True)
 
-angles = np.reshape(angles, (-1, 1))
+conductanceRoot = np.zeros((4, angleSamples, 8))
+comm.Allreduce([conductanceData, MPI.DOUBLE], [conductanceRoot, MPI.DOUBLE], op=MPI.SUM)
 
-conductanceMean = np.append(angles, conductanceData[0], axis=1)
-conductanceStd = np.append(angles, conductanceData[1], axis=1)
-conductanceMin = np.append(angles, conductanceData[2], axis=1)
-conductanceMax = np.append(angles, conductanceData[3], axis=1)
+if rank == 0:
+  angles = np.reshape(angles, (-1, 1))
 
-np.savetxt(meanName, conductanceMean)
-np.savetxt(stdName, conductanceStd)
-np.savetxt(minName, conductanceMin)
-np.savetxt(maxName, conductanceMax)
+  conductanceMean = np.append(angles, conductanceRoot[0], axis=1)
+  conductanceStd = np.append(angles, conductanceRoot[1], axis=1)
+  conductanceMin = np.append(angles, conductanceRoot[2], axis=1)
+  conductanceMax = np.append(angles, conductanceRoot[3], axis=1)
+
+  np.savetxt(meanName, conductanceMean)
+  np.savetxt(stdName, conductanceStd)
+  np.savetxt(minName, conductanceMin)
+  np.savetxt(maxName, conductanceMax)
