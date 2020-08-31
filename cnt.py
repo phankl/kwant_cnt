@@ -91,7 +91,9 @@ class CNT:
     self.sites = np.array(newSites)
     self.origin = self.origin + length*self.axis
     self.length = self.length - length
-    
+   
+    sites = self.sites
+
     # Minimum nearest-neighbour distance
 
     aCCMin = self.radius * np.sqrt(2.0*(1-np.cos(const.A_CC/self.radius)))
@@ -132,7 +134,86 @@ class CNT:
       index1 = indices[i]
       site1 = sites[i]
 
-      nearbySiteNumbers = np.argwhere(spatial.distance.cdist([index1], indices2, lambda u, v: np.amax(np.abs(u-v))) < 2)[:,1].reshape((-1))     
+      nearbySiteNumbers = np.argwhere(spatial.distance.cdist([index1], indices, lambda u, v: np.amax(np.abs(u-v))) < 2)[:,1].reshape((-1))     
+
+      if len(nearbySiteNumbers) == 0: continue
+
+      nearbySites = sites[nearbySiteNumbers]
+
+      dist = spatial.distance.cdist([site1], nearbySites).reshape((-1))
+
+      cutoffMask = np.argwhere(np.logical_and(dist-aCCMin+const.EPS > 0, dist-const.A_CC-const.EPS < 0))
+      
+      if len(cutoffMask) == 0: continue
+      
+      targetIndices = nearbySiteNumbers[cutoffMask].reshape((-1, 1))
+      sourceIndices = np.full((len(targetIndices), 1), i)
+      hoppingValues = np.full((len(targetIndices), 1), const.INTRA_HOPPING)
+
+      newHoppings = np.concatenate((sourceIndices, targetIndices, hoppingValues), axis=1)
+      
+      if len(hoppings) == 0: hoppings = newHoppings
+      else: hoppings = np.append(hoppings, newHoppings, axis=0)
+     
+    # Hoppings between nearest neighbours
+
+    self.hoppings = hoppings
+  
+  def sliceEnd(self, length):
+    newSites = []
+    for site in self.sites:
+      siteRelative = site - self.origin
+      startDistance = np.dot(siteRelative, self.axis)
+      if startDistance - length < const.EPS:
+        newSites.append(site)
+
+    self.sites = np.array(newSites)
+    self.origin = self.origin + length*self.axis
+    self.length = self.length - length
+    
+    sites = self.sites
+
+    # Minimum nearest-neighbour distance
+
+    aCCMin = self.radius * np.sqrt(2.0*(1-np.cos(const.A_CC/self.radius)))
+
+    # bin sites
+
+    minCoords = np.amin(sites, axis=0)
+    maxCoords = np.amax(sites, axis=0)
+
+    xMin = minCoords[0]
+    yMin = minCoords[1]
+    zMin = minCoords[2]
+    xMax = maxCoords[0]
+    yMax = maxCoords[1]
+    zMax = maxCoords[2]
+
+    xBinNumber = np.floor((xMax-xMin) / const.A_CC)
+    yBinNumber = np.floor((yMax-yMin) / const.A_CC)
+    zBinNumber = np.floor((zMax-zMin) / const.A_CC)
+    
+    if xBinNumber == 0: xBinNumber = 1
+    if yBinNumber == 0: yBinNumber = 1
+    if zBinNumber == 0: zBinNumber = 1
+
+    xBins = np.linspace(xMin, xMax, xBinNumber)
+    yBins = np.linspace(yMin, yMax, yBinNumber)
+    zBins = np.linspace(zMin, zMax, zBinNumber)
+
+    xIndices = np.digitize(sites[:,0], xBins).reshape((-1, 1))
+    yIndices = np.digitize(sites[:,1], yBins).reshape((-1, 1))
+    zIndices = np.digitize(sites[:,2], zBins).reshape((-1, 1))
+
+    indices = np.concatenate((xIndices, yIndices, zIndices), axis=1)
+    
+    hoppings = np.array([])
+
+    for i in range(len(sites)):
+      index1 = indices[i]
+      site1 = sites[i]
+
+      nearbySiteNumbers = np.argwhere(spatial.distance.cdist([index1], indices, lambda u, v: np.amax(np.abs(u-v))) < 2)[:,1].reshape((-1))     
 
       if len(nearbySiteNumbers) == 0: continue
 

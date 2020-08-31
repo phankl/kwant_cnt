@@ -1,14 +1,17 @@
 import kwant
 import numpy as np
+import time
 
 import constants as const
 import cnt
 import systems
 
-n1 = 0
-m1 = 0
-n2 = 0
-m2 = 0
+start = time.time()
+
+n1 = 10
+m1 = 10
+n2 = 10
+m2 = 10
 
 print("Pairing: (", n1, ",", m1, ")", " (", n2, ",", m2, ")", flush=True)
 
@@ -20,9 +23,9 @@ maxName = prefix + "max.dat"
 
 energy = 0.5
 
-angleSamples = 200
-offsetSamples = 2
-rotSamples = 2
+angleSamples = 10
+offsetSamples = 1
+rotSamples = 1
 
 angleOffset = 0.05 * np.pi
 
@@ -56,7 +59,9 @@ rots2 = np.linspace(0.0, rotMax2, rotSamples)
 conductanceData = np.zeros((4, angleSamples, 8))
 
 k = 0
-for angle in angles:
+for i in range(angleSamples):
+  angle = angles[i]
+
   conductance = np.zeros((offsetSamples**2 * rotSamples**2, 8))
   j = 0
 
@@ -84,7 +89,7 @@ for angle in angles:
   conductanceData[3, i] = np.amax(conductance, axis=0)
 
   k += 1
-  print("Progress:", k, "/", len(indices), flush=True)
+  print("Progress:", k, "/", angleSamples, flush=True)
 
 angles = np.reshape(angles, (-1, 1))
 
@@ -97,3 +102,7 @@ np.savetxt(meanName, conductanceMean)
 np.savetxt(stdName, conductanceStd)
 np.savetxt(minName, conductanceMin)
 np.savetxt(maxName, conductanceMax)
+
+end = time.time()
+
+print("Elapsed time:", end-start, "seconds")
