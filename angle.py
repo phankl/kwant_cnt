@@ -1,31 +1,32 @@
 import kwant
 import numpy as np
-import time
 
 import constants as const
 import cnt
 import systems
-
-start = time.time()
 
 n1 = 10
 m1 = 10
 n2 = 10
 m2 = 10
 
-print("Pairing: (", n1, ",", m1, ")", " (", n2, ",", m2, ")", flush=True)
+index = 0
 
-prefix = str(n1) + "_" + str(m1) + "_" + str(n2) + "_" + str(m2) + "_"
+print("Pairing: (", n1, ",", m1, ")", " (", n2, ",", m2, ")", flush=True)
+print("Index:", index, flush=True)
+
+prefix = str(n1) + "_" + str(m1) + "_" + str(n2) + "_" + str(m2) + "_" + str(index) + "_"
 meanName = prefix + "mean.dat"
 stdName = prefix + "std.dat"
 minName = prefix + "min.dat"
 maxName = prefix + "max.dat"
 
-energy = 0.5
+n_energy = 101
+energies = np.linspace(0.0, 1.0, n_energy)
 
-angleSamples = 10
-offsetSamples = 1
-rotSamples = 1
+angleSamples = 200
+offsetSamples = 2
+rotSamples = 2
 
 angleOffset = 0.05 * np.pi
 
@@ -56,53 +57,48 @@ offsets2 = np.linspace(0.0, offsetMax2, offsetSamples)
 rots1 = np.linspace(0.0, rotMax1, rotSamples)
 rots2 = np.linspace(0.0, rotMax2, rotSamples)
 
-conductanceData = np.zeros((4, angleSamples, 8))
+conductanceData = np.zeros((4, n_energy, 8))
+data = np.zeros((4, n_energy, 10))
 
-k = 0
-for i in range(angleSamples):
-  angle = angles[i]
+angle = angles[index]
 
-  conductance = np.zeros((offsetSamples**2 * rotSamples**2, 8))
-  j = 0
+samples = offsetSamples**2 * rotSamples**2
+conductance = np.zeros((samples, n_energy, 8))
+j = 0
 
-  for offset1 in offsets1:
-    for offset2 in offsets2:
-      for rot1 in rots1:
-        for rot2 in rots2:
-          system = systems.angledContact(n1, m1, n2, m2, angle, distance, rot1=rot1, offset1=offset1, rot2=rot2, offset2=offset2)
-          
-          smatrix = kwant.smatrix(system.systemFinalized, energy)
-          conductance[j, 0] = smatrix.transmission(0, 0)
-          conductance[j, 1] = smatrix.transmission(0, 1)
-          conductance[j, 2] = smatrix.transmission(0, 2)
-          conductance[j, 3] = smatrix.transmission(0, 3)
-          conductance[j, 4] = smatrix.transmission(2, 0)
-          conductance[j, 5] = smatrix.transmission(2, 1)
-          conductance[j, 6] = smatrix.transmission(2, 2)
-          conductance[j, 7] = smatrix.transmission(2, 3)
-          
-          j += 1
+for offset1 in offsets1:
+  for offset2 in offsets2:
+    for rot1 in rots1:
+      for rot2 in rots2:
+        system = systems.angledContact(n1, m1, n2, m2, angle, distance, rot1=rot1, offset1=offset1, rot2=rot2, offset2=offset2)
 
-  conductanceData[0, i] = np.mean(conductance, axis=0)
-  conductanceData[1, i] = np.std(conductance, axis=0)
-  conductanceData[2, i] = np.amin(conductance, axis=0)
-  conductanceData[3, i] = np.amax(conductance, axis=0)
+        print(f"{j+1} / {samples} system constructed")
+        smatrices = [kwant.smatrix(system.systemFinalized, energy) for energy in energies]
+        conductance[j, :, 0] = np.array([smatrix.transmission(0, 0) for smatrix in smatrices])
+        conductance[j, :, 1] = np.array([smatrix.transmission(0, 1) for smatrix in smatrices])
+        conductance[j, :, 2] = np.array([smatrix.transmission(0, 2) for smatrix in smatrices])
+        conductance[j, :, 3] = np.array([smatrix.transmission(0, 3) for smatrix in smatrices])
+        conductance[j, :, 4] = np.array([smatrix.transmission(2, 0) for smatrix in smatrices])
+        conductance[j, :, 5] = np.array([smatrix.transmission(2, 1) for smatrix in smatrices])
+        conductance[j, :, 6] = np.array([smatrix.transmission(2, 2) for smatrix in smatrices])
+        conductance[j, :, 7] = np.array([smatrix.transmission(2, 3) for smatrix in smatrices])
 
-  k += 1
-  print("Progress:", k, "/", angleSamples, flush=True)
+        print(f"{j+1} / {samples} conductance calculated")
 
-angles = np.reshape(angles, (-1, 1))
+        j += 1
 
-conductanceMean = np.append(angles, conductanceData[0], axis=1)
-conductanceStd = np.append(angles, conductanceData[1], axis=1)
-conductanceMin = np.append(angles, conductanceData[2], axis=1)
-conductanceMax = np.append(angles, conductanceData[3], axis=1)
+conductanceData[0] = np.mean(conductance, axis=0)
+conductanceData[1] = np.std(conductance, axis=0)
+conductanceData[2] = np.amin(conductance, axis=0)
+conductanceData[3] = np.amax(conductance, axis=0)
 
-np.savetxt(meanName, conductanceMean)
-np.savetxt(stdName, conductanceStd)
-np.savetxt(minName, conductanceMin)
-np.savetxt(maxName, conductanceMax)
+data[:, :, 0] = np.full((n_energy, ), angle)
+data[:, :, 1] = energies
+data[:, :, 2:] = conductanceData
 
-end = time.time()
+np.savetxt(meanName, data[0])
+np.savetxt(stdName, data[1])
+np.savetxt(minName, data[2])
+np.savetxt(maxName, data[3])
 
-print("Elapsed time:", end-start, "seconds")
+print("Done")
