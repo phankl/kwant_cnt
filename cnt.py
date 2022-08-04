@@ -170,7 +170,7 @@ class CNT:
 
     return hoppings
 
-  def interTubeHopping(cnt1, cnt2):
+  def interTubeHoppingOld(cnt1, cnt2):
 
     cutoffDistance = const.ALPHA - const.DELTA*np.log(const.COUPLING_CUTOFF)
 
@@ -213,3 +213,74 @@ class CNT:
     hoppings[:, 2] = -const.INTER_HOPPING * coupling
 
     return hoppings
+
+  def interTubeHopping(cnt1, cnt2):
+
+    cutoffDistance = const.ALPHA - const.DELTA*np.log(const.COUPLING_CUTOFF)
+
+    # compute orbital orientation
+
+    siteRelative1 = cnt1.sites - cnt1.origin
+    siteRelative2 = cnt2.sites - cnt2.origin
+    siteAxialComponent1 = np.dot(siteRelative1, cnt1.axis)
+    siteAxialComponent2 = np.dot(siteRelative2, cnt2.axis)
+    siteAxial1 = np.tensordot(siteAxialComponent1, cnt1.axis, axes=0)
+    siteAxial2 = np.tensordot(siteAxialComponent2, cnt2.axis, axes=0)
+
+    siteOrbital1 = siteRelative1 - siteAxial1
+    siteOrbital2 = siteRelative2 - siteAxial2
+
+    siteOrbitalNorms1 = np.linalg.norm(siteOrbital1, axis=1, keepdims=True)
+    siteOrbitalNorms2 = np.linalg.norm(siteOrbital2, axis=1, keepdims=True)
+
+    siteOrbital1 = siteOrbital1 / siteOrbitalNorms1
+    siteOrbital2 = siteOrbital2 / siteOrbitalNorms2
+
+    siteOrbitalRepeat1 = np.repeat(siteOrbital1[:, np.newaxis, :], len(cnt2.sites), axis=1)
+    siteOrbitalRepeat2 = np.repeat(siteOrbital2[np.newaxis, :, :], len(cnt1.sites), axis=0)
+
+    # compute projections onto sigma and pi orbitals
+
+    sitesRepeat1 = np.repeat(cnt1.sites[:, np.newaxis, :], len(cnt2.sites), axis=1)
+    sitesRepeat2 = np.repeat(cnt2.sites[np.newaxis, :, :], len(cnt1.sites), axis=0)
+    diff = sitesRepeat2 - sitesRepeat1
+    dist = np.linalg.norm(diff, axis=2)
+    diff = diff / np.repeat(dist[:, :, np.newaxis], 3, axis=2)
+
+    # random vectors orthogonal to diff
+
+    randomVectors = np.random.rand(*np.shape(diff))
+    diffComponent = np.sum(randomVectors*diff, axis=2)
+    diffOrth1 = randomVectors - np.repeat(diffComponent[:, :, np.newaxis], 3, axis=2) * diff
+    diffOrthNorms1 = np.linalg.norm(diffOrth1, axis=2, keepdims=True)
+    diffOrth1 = diffOrth1 / diffOrthNorms1
+    diffOrth2 = np.cross(diff, diffOrth1)
+
+    # compute orbital alignment terms
+
+    sigmaAlignment = np.sum(siteOrbitalRepeat1 * diff, axis=2) * np.sum(siteOrbitalRepeat2 * diff, axis=2)
+
+    piAlignment1 = np.sum(siteOrbitalRepeat1 * diffOrth1, axis=2) * np.sum(siteOrbitalRepeat2 * diffOrth1, axis=2)
+    piAlignment2 = np.sum(siteOrbitalRepeat1 * diffOrth2, axis=2) * np.sum(siteOrbitalRepeat2 * diffOrth2, axis=2)
+    piAlignment = piAlignment1 + piAlignment2
+
+    # compute decay terms
+
+    sigmaDecay = np.exp((const.ALPHA - dist) / const.DELTA)
+    piDecay = np.exp((const.BETA - dist) / const.DELTA)
+
+    # compute hoppings
+
+    coupling = const.PI_HOPPING * piDecay * piAlignment - const.SIGMA_HOPPING * sigmaDecay * sigmaAlignment
+
+    # cutoff
+
+    hopping_indices = np.argwhere(np.abs(coupling) > const.COUPLING_CUTOFF)
+    coupling = coupling[tuple(hopping_indices.T)]
+
+    hoppings = np.zeros((np.shape(hopping_indices)[0], 3))
+    hoppings[:, :-1] = hopping_indices
+    hoppings[:, 2] = coupling
+
+    return hoppings
+
